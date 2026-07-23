@@ -145,6 +145,9 @@ def generate_daily_digest():
     if not world_model_papers:
         print("⚠️ [Warning] Topic 2 returned 0 candidate papers. Continuing to digest generation.")
 
+    if not depth_papers or not world_model_papers:
+        raise RuntimeError("❌ [Error] 包含未抓取成功的論文主題 (可能觸發 429 Rate Limit)，取消呼叫 Gemini 並終止發信。")
+
     import json
     papers_data = json.dumps({"topic1": depth_papers, "topic2": world_model_papers})
     
@@ -155,11 +158,20 @@ def generate_daily_digest():
 
     print("Generating summary via Gemini API...")
     client = genai.Client(api_key=GEMINI_API_KEY)
-    response = client.models.generate_content(
-        model='gemini-3.6-flash',
-        contents=prompt
-    )
-    return response.text
+    
+    for attempt in range(3):
+        try:
+            response = client.models.generate_content(
+                model='gemini-2.5-flash',
+                contents=prompt
+            )
+            return response.text
+        except Exception as e:
+            print(f"⚠️ Gemini API 呼叫失敗 (嘗試 {attempt + 1}/3): {e}")
+            if attempt < 2:
+                time.sleep(5)
+            else:
+                raise e
 
 def send_email(content: str):
     sender_email = os.environ.get("SENDER_EMAIL")
