@@ -56,9 +56,10 @@ def get_published_papers(query: str, limit: int = 3):
         'query': query,
         'limit': min(limit, 5),
         'year': '2021-2026',
+        'fieldsOfStudy': 'Computer Science',
         'fields': 'title,abstract,authors,year,venue,url'
     }
-    
+
     last_error = None
     data = None
 
@@ -71,7 +72,7 @@ def get_published_papers(query: str, limit: int = 3):
                 headers=_semantic_scholar_headers(),
                 timeout=15,
             )
-            
+
             # 處理 429 Rate Limit
             if response.status_code == 429:
                 retry_after = response.headers.get("Retry-After")
@@ -80,11 +81,11 @@ def get_published_papers(query: str, limit: int = 3):
                 print(f"⚠️ [429 Rate Limited] Retrying in {wait_seconds}s (Attempt {attempt + 1}/{SEMANTIC_SCHOLAR_MAX_RETRIES})...")
                 time.sleep(wait_seconds)
                 continue
-                
+
             response.raise_for_status()
             data = response.json()
             break  # 成功取得資料，跳出迴圈
-            
+
         except requests.exceptions.RequestException as e:
             last_error = e
             wait_seconds = 10 * (attempt + 1)
@@ -116,7 +117,7 @@ def get_published_papers(query: str, limit: int = 3):
 
 def generate_daily_digest():
     time.sleep(3.0)
-    
+
     print("Fetching Topic 1 papers (Depth Estimation)...")
     depth_papers = get_published_papers("depth estimation", limit=2)
 
@@ -125,8 +126,11 @@ def generate_daily_digest():
 
     time.sleep(3.0)  # 兩次請求中間適度冷卻
 
-    print("Fetching Topic 2 papers (World Model)...")
-    world_model_papers = get_published_papers("world model", limit=2)
+    print("Fetching Topic 2 papers (Generative World Models)...")
+    world_model_papers = get_published_papers(
+        "generative world models video prediction simulation",
+        limit=2
+    )
 
     if not world_model_papers:
         print("⚠️ [Warning] Topic 2 returned 0 candidate papers.")
@@ -137,7 +141,7 @@ def generate_daily_digest():
 
     import json
     papers_data = json.dumps({"topic1": depth_papers, "topic2": world_model_papers}, ensure_ascii=False)
-    
+
     prompt = f"""Summarize these research papers:\n{papers_data}\n\nFormat each:\n**Title** (Year, Venue)\nLink: URL | Authors: Names\nSummary: 1-2 sentences on method\nImpact: 2 key contributions"""
 
     if not GEMINI_API_KEY:
@@ -145,7 +149,7 @@ def generate_daily_digest():
 
     print("Generating summary via Gemini API...")
     client = genai.Client(api_key=GEMINI_API_KEY)
-    
+
     for attempt in range(3):
         try:
             response = client.models.generate_content(
