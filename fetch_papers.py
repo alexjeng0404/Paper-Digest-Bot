@@ -1,5 +1,9 @@
+import hashlib
 import os
+import random
 import time
+from datetime import datetime, timezone
+
 import requests
 import smtplib
 from email.mime.text import MIMEText
@@ -33,6 +37,7 @@ SEMANTIC_SCHOLAR_URL = "https://api.semanticscholar.org/graph/v1/paper/search"
 SEMANTIC_SCHOLAR_REQUEST_GAP_SECONDS = 3.0
 SEMANTIC_SCHOLAR_429_COOLDOWN_SECONDS = 30
 SEMANTIC_SCHOLAR_MAX_RETRIES = 3
+SEMANTIC_SCHOLAR_CANDIDATE_LIMIT = 10
 
 
 def _semantic_scholar_headers():
@@ -48,13 +53,37 @@ def _semantic_scholar_headers():
     return headers
 
 
+def _select_daily_papers(papers, limit: int, query: str):
+    """Use the UTC date as a deterministic seed for daily selection."""
+    if len(papers) <= limit:
+        return papers
+
+    utc_date = datetime.now(timezone.utc).date().isoformat()
+    seed_text = f"{utc_date}:{query}"
+    seed_value = int(
+        hashlib.sha256(seed_text.encode("utf-8")).hexdigest(),
+        16,
+    )
+
+    daily_random = random.Random(seed_value)
+    selected_papers = papers.copy()
+    daily_random.shuffle(selected_papers)
+
+    print(
+        f"🎲 Selecting {limit} paper(s) from "
+        f"{len(papers)} candidates using UTC date {utc_date}."
+    )
+
+    return selected_papers[:limit]
+
+
 def get_published_papers(query: str, limit: int = 3):
     """
     Fetch research papers (2021-2026) directly from Semantic Scholar.
     """
     params = {
         'query': query,
-        'limit': min(limit, 5),
+        'limit': max(limit, SEMANTIC_SCHOLAR_CANDIDATE_LIMIT),
         'year': '2021-2026',
         'fieldsOfStudy': 'Computer Science',
         'fields': 'title,abstract,authors,year,venue,url'
@@ -112,7 +141,11 @@ def get_published_papers(query: str, limit: int = 3):
                     "url": item.get("url") or f"https://www.semanticscholar.org/search?q={title}"
                 })
 
-    return published_papers[:limit]
+    return _select_daily_papers(
+        published_papers,
+        limit,
+        query,
+    )
 
 
 def generate_daily_digest():
