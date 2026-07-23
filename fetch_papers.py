@@ -115,6 +115,8 @@ def get_published_papers(query: str, limit: int = 3):
 
 
 def generate_daily_digest():
+    time.sleep(3.0)
+    
     print("Fetching Topic 1 papers (Depth Estimation)...")
     depth_papers = get_published_papers("depth estimation", limit=2)
 
