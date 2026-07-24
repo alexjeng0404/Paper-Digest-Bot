@@ -2,8 +2,8 @@ name: Daily Paper Digest Bot
 
 on:
   schedule:
-    # Triggers daily at 00:00 UTC (08:00 AM UTC+8 Taiwan Time)
-    - cron: '0 0 * * *'
+    - cron: '50 7 * * *'
+      timezone: 'Asia/Taipei'
   workflow_dispatch:
 
 jobs:
